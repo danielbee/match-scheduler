@@ -217,23 +217,30 @@ class BadmintonSchedulerGraph:
         print(f"Active players ({len(self.active_players)}/{total_players}): {sorted(self.active_players)}")
         print(f"Inactive players ({len(self.inactive_players)}/{total_players}): {sorted(self.inactive_players)}")
 
-# Utility function to prompt user for player actions (toggle or add players)
-def prompt_player_actions(scheduler: BadmintonSchedulerGraph) -> None:
-    """
-    Prompt the user for actions to toggle or add players.
-    
-    :param scheduler: The BadmintonSchedulerGraph instance.
-    """
-    scheduler.print_current_status()
-
-    action_input = input("Enter player numbers (separated by spaces) to toggle or add (new numbers will be added): ")
-    actions = [int(num) for num in action_input.split() if num.isdigit()]
-
+def handle_player_actions(scheduler: BadmintonSchedulerGraph, actions: List[int]) -> None:
     for player in actions:
         if player in scheduler.players:
             scheduler.toggle_player(player)
         else:
             scheduler.add_player(player)
+    
+# Utility function to prompt user for player actions (toggle or add players)
+def prompt_player_actions(scheduler: BadmintonSchedulerGraph) -> None:
+    """
+    Prompt the user for actions to toggle or add players, then move to the next round once we've confirmed.
+    
+    :param scheduler: The BadmintonSchedulerGraph instance.
+    """
+    prompt_str = "Enter player numbers (separated by spaces) to toggle or add (new numbers will be added). y to move to next round:"
+    while True:
+        scheduler.print_current_status()
+        action_input = input(prompt_str)
+        if action_input.lower() == "y":
+            break
+        else:
+            actions = [int(num) for num in action_input.split() if num.isdigit()]
+            handle_player_actions(scheduler, actions)
+
 # Main loop to run the scheduling
 def main():
     initial_players = int(input("Enter the number of initial players: "))
