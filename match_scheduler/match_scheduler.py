@@ -236,9 +236,10 @@ def prompt_player_actions(scheduler: BadmintonSchedulerGraph) -> None:
             scheduler.add_player(player)
 # Main loop to run the scheduling
 def main():
-    initial_player_count = int(input("Enter the number of initial players: "))
-    players = list(range(1, initial_player_count + 1))  # Player IDs start from 1
-    courts = 3
+    initial_players = int(input("Enter the number of initial players: "))
+    initial_courts = int(input("Enter the number of initial court: "))
+    players = list(range(1, int(initial_players) + 1))  # Player IDs start from 1
+    courts = initial_courts
     scheduler = BadmintonSchedulerGraph(players, courts)
 
     round_number = 1
