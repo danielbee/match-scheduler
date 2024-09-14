@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "match-scheduler"
+version = "1.0.0"
+description = "Schedules matches with graph theory, and optimises against playing with or against same people, and some rest rules too"
+authors = ["Your Name <you@example.com>"]
+license = "MIT License"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+networkx = "^3.3"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
