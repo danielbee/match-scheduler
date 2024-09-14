@@ -252,7 +252,9 @@ def main():
         else:
             matches = scheduler.find_new_matches()
 
-        print(f"Round {round_number} matches: {matches}")
+        print(f"Round {round_number} matches:")
+        for i, match in enumerate(matches):
+            print(f"\tCourt {i+1} : {match}")
 
         # Update the graph with new matches
         scheduler.update_graph_with_matches(matches)
