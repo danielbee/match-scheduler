@@ -231,12 +231,14 @@ def prompt_player_actions(scheduler: BadmintonSchedulerGraph) -> None:
     
     :param scheduler: The BadmintonSchedulerGraph instance.
     """
-    prompt_str = "Enter player numbers (separated by spaces) to toggle or add (new numbers will be added). y to move to next round:"
+    prompt_str = "Enter player numbers (separated by spaces) to toggle or add (new numbers will be added). y to move to next round. q to quit:"
     while True:
         scheduler.print_current_status()
         action_input = input(prompt_str)
         if action_input.lower() == "y":
             break
+        elif action_input.lower() == "q":
+            raise KeyboardInterrupt
         else:
             actions = [int(num) for num in action_input.split() if num.isdigit()]
             handle_player_actions(scheduler, actions)
@@ -274,7 +276,12 @@ def main():
             print("No players are resting this round.")
 
         # Prompt for player actions (toggle or add players)
-        prompt_player_actions(scheduler)
+        try:
+            prompt_player_actions(scheduler)
+        except KeyboardInterrupt:
+            print("Exiting scheduler")
+            return
+            
 
         # Update player list and courts for the next round
         round_number += 1
