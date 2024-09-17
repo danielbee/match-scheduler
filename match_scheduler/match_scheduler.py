@@ -4,12 +4,18 @@ from typing import List, Optional, Tuple
 import logging
 import time
 import networkx as nx
+from pathlib import Path
 
 LOGGER = logging.getLogger(__name__)
 # Descriptive Type Aliases
 Player = int
 Team = List[Player]
 Match = Tuple[Team, Team]
+
+def print_log(values):
+    # capture transcript into log file
+    print(values)
+    LOGGER.debug(values)
 
 class BadmintonSchedulerGraph:
     def __init__(self, players: List[Player], courts: int = 3) -> None:
@@ -173,13 +179,13 @@ class BadmintonSchedulerGraph:
         if player in self.active_players:
             self.active_players.remove(player)
             self.inactive_players.append(player)
-            print(f"Player {player} is now inactive.")
+            print_log(f"Player {player} is now inactive.")
         elif player in self.inactive_players:
             self.inactive_players.remove(player)
             self.active_players.append(player)
-            print(f"Player {player} is now active again.")
+            print_log(f"Player {player} is now active again.")
         else:
-            print(f"Player {player} is not part of the session.")
+            print_log(f"Player {player} is not part of the session.")
 
     def add_player(self, new_player: Player) -> None:
         """
@@ -190,7 +196,7 @@ class BadmintonSchedulerGraph:
         self.players.append(new_player)
         self.active_players.append(new_player)
         self.graph.add_node(new_player)
-        print(f"Player {new_player} has been added.")
+        print_log(f"Player {new_player} has been added.")
 
     def drop_players(self, dropped_indices: List[int]) -> None:
         """
@@ -214,11 +220,11 @@ class BadmintonSchedulerGraph:
 
     def print_current_status(self) -> None:
         """
-        Print the current status of active, resting, and inactive players.
+        print_log the current status of active, resting, and inactive players.
         """
         total_players: int = len(self.players)
-        print(f"Active players ({len(self.active_players)}/{total_players}): {sorted(self.active_players)}")
-        print(f"Inactive players ({len(self.inactive_players)}/{total_players}): {sorted(self.inactive_players)}")
+        print_log(f"Active players ({len(self.active_players)}/{total_players}): {sorted(self.active_players)}")
+        print_log(f"Inactive players ({len(self.inactive_players)}/{total_players}): {sorted(self.inactive_players)}")
 
 def handle_player_actions(scheduler: BadmintonSchedulerGraph, actions: List[int]) -> None:
     for player in actions:
@@ -257,7 +263,7 @@ def main():
 
     round_number = 1
     while len(sorted(scheduler.active_players)) > 3:  # Need at least 4 active players to continue matches
-        print(f"\n--- Round {round_number} ---")
+        print_log(f"\n--- Round {round_number} ---")
 
         # Generate initial matches or new matches based on remaining players
         if round_number == 1:
@@ -265,9 +271,9 @@ def main():
         else:
             matches = scheduler.find_new_matches()
 
-        print(f"Round {round_number} matches:")
+        print_log(f"Round {round_number} matches:")
         for i, match in enumerate(matches):
-            print(f"\tCourt {i+1} : {match}")
+            print_log(f"\tCourt {i+1} : {match}")
 
         # Update the graph with new matches
         scheduler.update_graph_with_matches(matches)
@@ -275,36 +281,50 @@ def main():
         # Show resting players
         resting_players = sorted(scheduler.get_resting_players(matches))  # Sorting resting players
         if resting_players:
-            print(f"Resting players ({len(resting_players)}): {resting_players}")
+            print_log(f"Resting players ({len(resting_players)}): {resting_players}")
         else:
-            print("No players are resting this round.")
+            print_log("No players are resting this round.")
 
         # Prompt for player actions (toggle or add players)
         try:
             prompt_player_actions(scheduler)
         except KeyboardInterrupt:
-            print("Exiting scheduler")
+            print_log("Exiting scheduler")
             return
             
 
         # Update player list and courts for the next round
         round_number += 1
 
-if __name__ == "__main__":
+def setup_logging():
     timestr = time.strftime("%Y-%m-%d", time.gmtime())
-    logging.basicConfig(filename=f"{timestr}-schedule.log",  level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logfile_dir = Path("logs" )
+    logfile_dir.mkdir(parents=True, exist_ok=True)
+    logfile_name = f"{timestr}-schedule.log"
+    logfile_path = logfile_dir / logfile_name
+    logging.basicConfig(filename=logfile_path,  level=logging.DEBUG, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
     rootlog=logging.getLogger()
     # create console handler and set level to debug
     ch = logging.StreamHandler()
     ch.setLevel(logging.INFO)
 
     # create formatter
-    formatter = logging.Formatter('%(message)s')
+    formatter = logging.Formatter('%(levelname)s:%(message)s')
+    # normal CLI messages will use print, logging is just for additional info. 
     
     # add formatter to ch
     ch.setFormatter(formatter)
     
     # add ch to logger
     rootlog.addHandler(ch)
-    main()
+    return rootlog
+    
+if __name__ == "__main__":
+    setup_logging()
+    try:
+        main()
+    except Exception as err:
+        # make sure it gets logged
+        LOGGER.exception(err)
+        raise err
     
