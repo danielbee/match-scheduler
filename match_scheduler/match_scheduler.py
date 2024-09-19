@@ -29,7 +29,9 @@ class BadmintonSchedulerGraph:
         :param courts: Number of courts available for matches, defaults to 3.
         """
         LOGGER.debug(
-            "Init Badminton graph with %s players and %s courts", len(players), courts
+            "Init Badminton graph with %s players and %s courts",
+            len(players),
+            courts,
         )
         self.players: List[Player] = players
         self.active_players: List[Player] = (
@@ -37,7 +39,9 @@ class BadmintonSchedulerGraph:
         )  # Active players who are currently playing
         self.inactive_players: List[Player] = []  # Players sitting out
         self.courts: int = courts
-        self.graph: nx.Graph = nx.Graph()  # Graph to track who has played against whom
+        self.graph: nx.Graph = (
+            nx.Graph()
+        )  # Graph to track who has played against whom
         self.graph.add_nodes_from(players)  # Add players as nodes
 
     def generate_initial_matches(self) -> List[Match]:
@@ -59,7 +63,9 @@ class BadmintonSchedulerGraph:
 
         # If courts are available and not enough players for doubles, add a singles match
         if len(matches) < self.courts and len(self.active_players) - i >= 2:
-            matches.append(([self.active_players[i]], [self.active_players[i + 1]]))
+            matches.append(
+                ([self.active_players[i]], [self.active_players[i + 1]])
+            )
 
         return matches
 
@@ -89,7 +95,9 @@ class BadmintonSchedulerGraph:
             if self.graph.has_edge(player, player):
                 self.graph[player][player]["teammate_weight"] += 1
             else:
-                self.graph.add_edge(player, player, weight=0, teammate_weight=1)
+                self.graph.add_edge(
+                    player, player, weight=0, teammate_weight=1
+                )
         else:
             # Add edges between teammates in doubles
             for p1 in team:
@@ -98,7 +106,9 @@ class BadmintonSchedulerGraph:
                         if self.graph.has_edge(p1, p2):
                             self.graph[p1][p2]["teammate_weight"] += 1
                         else:
-                            self.graph.add_edge(p1, p2, weight=0, teammate_weight=1)
+                            self.graph.add_edge(
+                                p1, p2, weight=0, teammate_weight=1
+                            )
 
     def add_opponent_edges(self, pair1: Team, pair2: Team) -> None:
         """
@@ -127,13 +137,18 @@ class BadmintonSchedulerGraph:
         i: int = 0
         while i + 3 < len(self.active_players) and len(matches) < self.courts:
             pair1: Team = [self.active_players[i], self.active_players[i + 1]]
-            pair2: Team = [self.active_players[i + 2], self.active_players[i + 3]]
+            pair2: Team = [
+                self.active_players[i + 2],
+                self.active_players[i + 3],
+            ]
             matches.append((pair1, pair2))
             i += 4
 
         # If courts are available, add a singles match
         if len(matches) < self.courts and len(self.active_players) - i >= 2:
-            matches.append(([self.active_players[i]], [self.active_players[i + 1]]))
+            matches.append(
+                ([self.active_players[i]], [self.active_players[i + 1]])
+            )
 
         matches.sort(key=self.match_cost)
         return matches[: self.courts]
@@ -222,7 +237,9 @@ class BadmintonSchedulerGraph:
         :param matches: List of current matches.
         :return: List of resting player IDs.
         """
-        matched_players = {p for match in matches for pair in match for p in pair}
+        matched_players = {
+            p for match in matches for pair in match for p in pair
+        }
         return [p for p in self.active_players if p not in matched_players]
 
     def print_current_status(self) -> None:
@@ -264,7 +281,9 @@ def prompt_player_actions(scheduler: BadmintonSchedulerGraph) -> None:
         elif action_input.lower() == "q":
             raise KeyboardInterrupt
         else:
-            actions = [int(num) for num in action_input.split() if num.isdigit()]
+            actions = [
+                int(num) for num in action_input.split() if num.isdigit()
+            ]
             handle_player_actions(scheduler, actions)
 
 
@@ -273,7 +292,9 @@ def main():
     LOGGER.info("Application started")
     initial_players = int(input("Enter the number of initial players: "))
     initial_courts = int(input("Enter the number of initial court: "))
-    players = list(range(1, int(initial_players) + 1))  # Player IDs start from 1
+    players = list(
+        range(1, int(initial_players) + 1)
+    )  # Player IDs start from 1
     courts = initial_courts
     scheduler = BadmintonSchedulerGraph(players, courts)
 
@@ -301,7 +322,9 @@ def main():
             scheduler.get_resting_players(matches)
         )  # Sorting resting players
         if resting_players:
-            print_log(f"Resting players ({len(resting_players)}): {resting_players}")
+            print_log(
+                f"Resting players ({len(resting_players)}): {resting_players}"
+            )
         else:
             print_log("No players are resting this round.")
 
