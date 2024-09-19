@@ -42,6 +42,12 @@ class BadmintonSchedulerGraph:
         self.graph: nx.Graph = (
             nx.Graph()
         )  # Graph to track who has played against whom
+        # set of allowable team sizes, sorted in preference
+        self.team_size = (
+            2,
+            1,
+        )
+        self.num_teams = 2  # in one game/match
         self.graph.add_nodes_from(players)  # Add players as nodes
 
     def generate_initial_matches(self) -> List[Match]:
@@ -52,19 +58,21 @@ class BadmintonSchedulerGraph:
         """
         random.shuffle(self.active_players)
         matches: List[Match] = []
-        i: int = 0
+        pidx: int = 0  # player index
 
         # Generate doubles matches
-        while i + 3 < len(self.active_players) and len(matches) < self.courts:
-            pair1: Team = self.active_players[i : i + 2]
-            pair2: Team = self.active_players[i + 2 : i + 4]
+        while ((pidx + 3) < len(self.active_players)) and (
+            len(matches) < self.courts
+        ):
+            pair1: Team = self.active_players[pidx : pidx + 2]
+            pair2: Team = self.active_players[pidx + 2 : pidx + 4]
             matches.append((pair1, pair2))
-            i += 4
+            pidx += 4
 
         # If courts are available and not enough players for doubles, add a singles match
-        if len(matches) < self.courts and len(self.active_players) - i >= 2:
+        if len(matches) < self.courts and len(self.active_players) - pidx >= 2:
             matches.append(
-                ([self.active_players[i]], [self.active_players[i + 1]])
+                ([self.active_players[pidx]], [self.active_players[pidx + 1]])
             )
 
         return matches
@@ -134,20 +142,25 @@ class BadmintonSchedulerGraph:
         matches: List[Match] = []
 
         # Create doubles matches first
-        i: int = 0
-        while i + 3 < len(self.active_players) and len(matches) < self.courts:
-            pair1: Team = [self.active_players[i], self.active_players[i + 1]]
+        pidx: int = 0  # player index
+        while ((pidx + 3) < len(self.active_players)) and (
+            len(matches) < self.courts
+        ):
+            pair1: Team = [
+                self.active_players[pidx],
+                self.active_players[pidx + 1],
+            ]
             pair2: Team = [
-                self.active_players[i + 2],
-                self.active_players[i + 3],
+                self.active_players[pidx + 2],
+                self.active_players[pidx + 3],
             ]
             matches.append((pair1, pair2))
-            i += 4
+            pidx += 4
 
         # If courts are available, add a singles match
-        if len(matches) < self.courts and len(self.active_players) - i >= 2:
+        if len(matches) < self.courts and len(self.active_players) - pidx >= 2:
             matches.append(
-                ([self.active_players[i]], [self.active_players[i + 1]])
+                ([self.active_players[pidx]], [self.active_players[pidx + 1]])
             )
 
         matches.sort(key=self.match_cost)
