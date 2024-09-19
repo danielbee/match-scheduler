@@ -38,15 +38,11 @@ class BadmintonSchedulerGraph:
             players.copy()
         )  # Active players who are currently playing
         self.inactive_players: List[Player] = []  # Players sitting out
-        self.courts: int = courts
-        self.graph: nx.Graph = (
-            nx.Graph()
-        )  # Graph to track who has played against whom
+        self.courts = courts
+        # Graph to track who has played against whom
+        self.graph = nx.MultiGraph()
         # set of allowable team sizes, sorted in preference
-        self.team_size = (
-            2,
-            1,
-        )
+        self.team_size: set[int] = set([2, 1])
         self.num_teams = 2  # in one game/match
         self.graph.add_nodes_from(players)  # Add players as nodes
 
@@ -100,23 +96,13 @@ class BadmintonSchedulerGraph:
         # Handle singles as a special case (player is their own teammate)
         if len(team) == 1:
             player: Player = team[0]
-            if self.graph.has_edge(player, player):
-                self.graph[player][player]["teammate_weight"] += 1
-            else:
-                self.graph.add_edge(
-                    player, player, weight=0, teammate_weight=1
-                )
+            team = [player] * 2
+        # Add edges between teammates
+        p1, p2 = team
+        if self.graph.has_edge(p1, p2, key="team"):
+            self.graph[p1][p2]["team"]["weight"] += 1
         else:
-            # Add edges between teammates in doubles
-            for p1 in team:
-                for p2 in team:
-                    if p1 != p2:
-                        if self.graph.has_edge(p1, p2):
-                            self.graph[p1][p2]["teammate_weight"] += 1
-                        else:
-                            self.graph.add_edge(
-                                p1, p2, weight=0, teammate_weight=1
-                            )
+            self.graph.add_edge(p1, p2, weight=1, key="team")
 
     def add_opponent_edges(self, pair1: Team, pair2: Team) -> None:
         """
@@ -127,10 +113,19 @@ class BadmintonSchedulerGraph:
         """
         for p1 in pair1:
             for p2 in pair2:
-                if self.graph.has_edge(p1, p2):
-                    self.graph[p1][p2]["weight"] += 1
+                if self.graph.has_edge(p1, p2, key="opp"):
+                    self.graph[p1][p2]["opp"]["weight"] += 1
                 else:
-                    self.graph.add_edge(p1, p2, weight=1, teammate_weight=0)
+                    self.graph.add_edge(p1, p2, weight=1, key="opp")
+
+    def add_rest_edges(self, player: Player, round: int = 1) -> None:
+        """
+        Update or add rest edges on a player.
+
+        :param player: player id
+        """
+
+        self.graph.add_edge(player, player, weight=round, key="rest")
 
     def find_new_matches(self) -> List[Match]:
         """
@@ -179,8 +174,8 @@ class BadmintonSchedulerGraph:
         # Calculate opponent cost
         for p1 in pair1:
             for p2 in pair2:
-                if self.graph.has_edge(p1, p2):
-                    cost += self.graph[p1][p2]["weight"]
+                if self.graph.has_edge(p1, p2, key="opp"):
+                    cost += self.graph[p1][p2]["opp"]["weight"]
 
         # Add teammate cost
         cost += self.teammate_cost(pair1) + self.teammate_cost(pair2)
@@ -195,14 +190,10 @@ class BadmintonSchedulerGraph:
         """
         cost: int = 0
         if len(team) == 1:  # Handle singles match as a special case
-            player: Player = team[0]
-            if self.graph.has_edge(player, player):
-                cost += self.graph[player][player]["teammate_weight"]
-        else:
-            for p1 in team:
-                for p2 in team:
-                    if p1 != p2 and self.graph.has_edge(p1, p2):
-                        cost += self.graph[p1][p2]["teammate_weight"]
+            team = team * 2
+        p1, p2 = team
+        if self.graph.has_edge(p1, p2, key="teammate"):
+            cost += self.graph[p1][p2]["teammate"]
         return cost
 
     def toggle_player(self, player: Player) -> None:
