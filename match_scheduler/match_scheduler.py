@@ -2,6 +2,7 @@
 import logging
 import random
 import time
+from itertools import product
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -80,12 +81,13 @@ class BadmintonSchedulerGraph:
         :param matches: List of matches played in this round.
         """
         for match in matches:
-            pair1, pair2 = match
-
-            # Update teammate and opponent edges
-            self.add_teammate_edges(pair1)
-            self.add_teammate_edges(pair2)
-            self.add_opponent_edges(pair1, pair2)
+            for team in match:
+                self.add_teammate_edges(team)
+            self.add_opponent_edges(*match)
+        # add rests
+        rest_players = self.get_resting_players(matches)
+        for player in rest_players + self.inactive_players:
+            self.add_rest_edges(player)
 
     def add_teammate_edges(self, team: Team) -> None:
         """
@@ -111,12 +113,11 @@ class BadmintonSchedulerGraph:
         :param pair1: First team (list of player IDs).
         :param pair2: Second team (list of player IDs).
         """
-        for p1 in pair1:
-            for p2 in pair2:
-                if self.graph.has_edge(p1, p2, key="opp"):
-                    self.graph[p1][p2]["opp"]["weight"] += 1
-                else:
-                    self.graph.add_edge(p1, p2, weight=1, key="opp")
+        for p1, p2 in product(pair1, pair2):
+            if self.graph.has_edge(p1, p2, key="opp"):
+                self.graph[p1][p2]["opp"]["weight"] += 1
+            else:
+                self.graph.add_edge(p1, p2, weight=1, key="opp")
 
     def add_rest_edges(self, player: Player, round: int = 1) -> None:
         """
@@ -172,13 +173,31 @@ class BadmintonSchedulerGraph:
         cost: int = 0
 
         # Calculate opponent cost
-        for p1 in pair1:
-            for p2 in pair2:
-                if self.graph.has_edge(p1, p2, key="opp"):
-                    cost += self.graph[p1][p2]["opp"]["weight"]
+        for p1, p2 in product(pair1, pair2):
+            if self.graph.has_edge(p1, p2, key="opp"):
+                cost += self.graph[p1][p2]["opp"]["weight"]
 
         # Add teammate cost
         cost += self.teammate_cost(pair1) + self.teammate_cost(pair2)
+
+        # concat players to one iterable
+        match_players = list(sum(match, []))
+        # add rest cost
+        for player in match_players:
+            cost += self.rest_cost(player)
+        return cost
+
+    def rest_cost(self, player: Player) -> int:
+        """
+        Calculate the cost a player having rested recently
+
+        :param team: player IDs in a team.
+        :return: The total player cost.
+        """
+        # Calculate cost
+        cost: int = 0
+        if self.graph.has_edge(player, player, key="rest"):
+            cost += self.graph[player][player]["rest"]["weight"]
         return cost
 
     def teammate_cost(self, team: Team) -> int:
@@ -241,9 +260,10 @@ class BadmintonSchedulerGraph:
         :param matches: List of current matches.
         :return: List of resting player IDs.
         """
-        matched_players = {
-            p for match in matches for pair in match for p in pair
-        }
+        matched_players = []
+        for match in matches:
+            # concat players to one iterable
+            matched_players += list(sum(match, []))
         return [p for p in self.active_players if p not in matched_players]
 
     def print_current_status(self) -> None:
