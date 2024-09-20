@@ -47,33 +47,6 @@ class BadmintonSchedulerGraph:
         self.num_teams = 2  # in one game/match
         self.graph.add_nodes_from(players)  # Add players as nodes
 
-    def generate_initial_matches(self) -> List[Match]:
-        """
-        Generate the initial set of matches.
-
-        :return: A list of matches where each match is a tuple of two teams (pairs or singles).
-        """
-        random.shuffle(self.active_players)
-        matches: List[Match] = []
-        pidx: int = 0  # player index
-
-        # Generate doubles matches
-        while ((pidx + 3) < len(self.active_players)) and (
-            len(matches) < self.courts
-        ):
-            pair1: Team = self.active_players[pidx : pidx + 2]
-            pair2: Team = self.active_players[pidx + 2 : pidx + 4]
-            matches.append((pair1, pair2))
-            pidx += 4
-
-        # If courts are available and not enough players for doubles, add a singles match
-        if len(matches) < self.courts and len(self.active_players) - pidx >= 2:
-            matches.append(
-                ([self.active_players[pidx]], [self.active_players[pidx + 1]])
-            )
-
-        return matches
-
     def update_graph_with_matches(self, matches: List[Match]) -> None:
         """
         Update the internal graph with match data.
@@ -142,14 +115,8 @@ class BadmintonSchedulerGraph:
         while ((pidx + 3) < len(self.active_players)) and (
             len(matches) < self.courts
         ):
-            pair1: Team = [
-                self.active_players[pidx],
-                self.active_players[pidx + 1],
-            ]
-            pair2: Team = [
-                self.active_players[pidx + 2],
-                self.active_players[pidx + 3],
-            ]
+            pair1: Team = self.active_players[pidx : pidx + 2]
+            pair2: Team = self.active_players[pidx + 2 : pidx + 4]
             matches.append((pair1, pair2))
             pidx += 4
 
@@ -241,6 +208,7 @@ class BadmintonSchedulerGraph:
         self.players.append(new_player)
         self.active_players.append(new_player)
         self.graph.add_node(new_player)
+        self.add_rest_edges(new_player)  # todo get current round
         print_log(f"Player {new_player} has been added.")
 
     def drop_players(self, dropped_indices: List[int]) -> None:
@@ -329,10 +297,7 @@ def main():
         print_log(f"\n--- Round {round_number} ---")
 
         # Generate initial matches or new matches based on remaining players
-        if round_number == 1:
-            matches = scheduler.generate_initial_matches()
-        else:
-            matches = scheduler.find_new_matches()
+        matches = scheduler.find_new_matches()
 
         print_log(f"Round {round_number} matches:")
         for i, match in enumerate(matches):

@@ -16,6 +16,7 @@ pylint = "^3.2.7"
 isort = "^5.13.2"
 black = "^24.8.0"
 mypy = "^1.11.2"
+pytest = "^8.3.3"
 
 [tool.black]
 line-length = 79
