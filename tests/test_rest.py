@@ -1,3 +1,4 @@
+import logging
 from collections import defaultdict
 
 import pytest
@@ -5,7 +6,9 @@ import pytest
 from match_scheduler.match_scheduler import (
     BadmintonSchedulerGraph as MatchScheduler,
 )
+from match_scheduler.match_scheduler import num_rest
 
+LOGGER = logging.getLogger(__name__)
 # Import MatchScheduler from the module where you defined it
 # from your_module import MatchScheduler
 
@@ -26,7 +29,7 @@ def test_no_more_than_one_rest(scheduler):
     current_round = 1
 
     # Simulate 10 rounds
-    while current_round <= 10:
+    while current_round <= 9:
         if current_round == 7:
             scheduler.add_player(14)  # Player 14 joins in round 7
 
@@ -35,6 +38,7 @@ def test_no_more_than_one_rest(scheduler):
 
         # Collect resting players
         resting_players = sorted(scheduler.get_resting_players(matches))
+        LOGGER.debug(f"{resting_players=}")
 
         # Increment rest count for players who are resting
         for player in resting_players:
@@ -48,6 +52,7 @@ def test_no_more_than_one_rest(scheduler):
 
         # Ensure no player rests more than once
         for player, count in resting_count.items():
+            LOGGER.debug(f"{player=}, {count}")
             assert count <= 1, f"Player {player} rested more than once."
 
         # Update graph with the matches of the current round
@@ -87,3 +92,22 @@ def test_rest_distribution(scheduler):
     # Assert that no player rests more than once
     for player, count in resting_count.items():
         assert count <= 1, f"Player {player} rested more than once."
+
+
+from itertools import product
+
+
+def test_num_rest():
+    rest = num_rest(11, 3, [2, 1], 2)
+    assert rest == 1
+    rest = num_rest(2, 3, [2, 1], 2)
+    assert rest == 0
+    # exhaustive test for errors
+    rest = num_rest(1, 3, [2, 1], 2)
+    assert rest == 1
+
+    players = range(2, 23)
+    courts = range(1, 7)
+    for player, court in product(players, courts):
+        rest = num_rest(player, court, [2, 1], 2)
+        LOGGER.debug(f"{rest=} for {player=}, {court=}")

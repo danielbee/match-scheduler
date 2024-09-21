@@ -21,6 +21,39 @@ def print_log(values):
     LOGGER.debug(values)
 
 
+def num_rest(
+    total_players: int, courts: int, team_sizes: List[int], num_teams: int
+) -> int:
+    """Find out how many resting players there are for a given config of players
+
+    Args:
+        total_players (int):
+        courts (int):
+        team_sizes (List[int]): preferential list of teams. NOTE currently only descending order supported
+        num_teams (int): teams per match
+
+    Raises:
+        ValueError: if we can't find a solution of resting players
+
+    Returns:
+        int: _description_
+    """
+    available_courts = courts
+    for team_size in team_sizes:
+        resting = total_players - available_courts * team_size * num_teams
+        if resting >= 0:
+            return resting
+        else:
+            # fewer players than courts
+            num_full_matches = total_players // (team_size * num_teams)
+            total_players -= (team_size * num_teams) * num_full_matches
+            available_courts -= num_full_matches
+            if total_players == 0:  # no more players left, spare courts
+                return 0
+    return total_players
+    # raise ValueError("Cannot find a solution for resting players")
+
+
 class BadmintonSchedulerGraph:
     def __init__(self, players: List[Player], courts: int = 3) -> None:
         """
@@ -41,11 +74,13 @@ class BadmintonSchedulerGraph:
         self.inactive_players: List[Player] = []  # Players sitting out
         self.courts = courts
         # Graph to track who has played against whom
-        self.graph = nx.MultiGraph()
+        self.mg = nx.MultiGraph(incoming_graph_data=None, round=0)
         # set of allowable team sizes, sorted in preference
-        self.team_size: set[int] = set([2, 1])
+        self.team_size: List[int] = [2, 1]
         self.num_teams = 2  # in one game/match
-        self.graph.add_nodes_from(players)  # Add players as nodes
+        self.mg.add_nodes_from(
+            players, rest=0, rests=[]  # adds rest and rests as node attributes
+        )  # Add players as nodes
 
     def update_graph_with_matches(self, matches: List[Match]) -> None:
         """
@@ -53,6 +88,7 @@ class BadmintonSchedulerGraph:
 
         :param matches: List of matches played in this round.
         """
+        self.mg.graph["round"] += 1
         for match in matches:
             for team in match:
                 self.add_teammate_edges(team)
@@ -60,7 +96,7 @@ class BadmintonSchedulerGraph:
         # add rests
         rest_players = self.get_resting_players(matches)
         for player in rest_players + self.inactive_players:
-            self.add_rest_edges(player)
+            self.add_player_rest(player)
 
     def add_teammate_edges(self, team: Team) -> None:
         """
@@ -74,10 +110,10 @@ class BadmintonSchedulerGraph:
             team = [player] * 2
         # Add edges between teammates
         p1, p2 = team
-        if self.graph.has_edge(p1, p2, key="team"):
-            self.graph[p1][p2]["team"]["weight"] += 1
+        if self.mg.has_edge(p1, p2, key="team"):
+            self.mg[p1][p2]["team"]["weight"] += 1
         else:
-            self.graph.add_edge(p1, p2, weight=1, key="team")
+            self.mg.add_edge(p1, p2, weight=1, key="team")
 
     def add_opponent_edges(self, pair1: Team, pair2: Team) -> None:
         """
@@ -87,19 +123,28 @@ class BadmintonSchedulerGraph:
         :param pair2: Second team (list of player IDs).
         """
         for p1, p2 in product(pair1, pair2):
-            if self.graph.has_edge(p1, p2, key="opp"):
-                self.graph[p1][p2]["opp"]["weight"] += 1
+            if self.mg.has_edge(p1, p2, key="opp"):
+                self.mg[p1][p2]["opp"]["weight"] += 1
             else:
-                self.graph.add_edge(p1, p2, weight=1, key="opp")
+                self.mg.add_edge(p1, p2, weight=1, key="opp")
 
-    def add_rest_edges(self, player: Player, round: int = 1) -> None:
+    def add_player_rest(self, player: Player) -> None:
         """
         Update or add rest edges on a player.
 
         :param player: player id
         """
 
-        self.graph.add_edge(player, player, weight=round, key="rest")
+        self.mg.nodes[player]["rest"] = self.mg.graph["round"]
+        self.mg.nodes[player]["rests"].append(self.mg.graph["round"])
+
+    def num_rest(self) -> int:
+        return num_rest(
+            len(self.active_players),
+            self.courts,
+            self.team_size,
+            self.num_teams,
+        )
 
     def find_new_matches(self) -> List[Match]:
         """
@@ -107,24 +152,49 @@ class BadmintonSchedulerGraph:
 
         :return: A list of matches where each match is a tuple of two teams (pairs or singles).
         """
-        random.shuffle(self.active_players)
-        matches: List[Match] = []
+        # sort players by most recent rests TODO then by number of rests.
+        num_rest = self.num_rest()
+        if num_rest:
+            self.active_players.sort(key=lambda p: self.mg.nodes[p]["rest"])
+            lowest_rest = self.mg.nodes[self.active_players[0]][
+                "rest"
+            ]  # lowest rest
+            highest_rest = self.mg.nodes[self.active_players[num_rest - 1]][
+                "rest"
+            ]
+            # get all players with the same rest stats
+            same_rest_players = [
+                player
+                for player in self.active_players
+                if self.mg.nodes[player]["rest"]
+                in range(lowest_rest, highest_rest + 1)
+            ]
+            # randomise them and take num_rest at random
+            random.shuffle(same_rest_players)
+            rest_players = same_rest_players[:num_rest]
+            match_players = [
+                player
+                for player in self.active_players
+                if player not in rest_players
+            ]
+        else:
+            match_players = self.active_players
 
+        random.shuffle(match_players)
+        matches: List[Match] = []
         # Create doubles matches first
         pidx: int = 0  # player index
-        while ((pidx + 3) < len(self.active_players)) and (
+        while ((pidx + 3) < len(match_players)) and (
             len(matches) < self.courts
         ):
-            pair1: Team = self.active_players[pidx : pidx + 2]
-            pair2: Team = self.active_players[pidx + 2 : pidx + 4]
+            pair1: Team = match_players[pidx : pidx + 2]
+            pair2: Team = match_players[pidx + 2 : pidx + 4]
             matches.append((pair1, pair2))
             pidx += 4
 
         # If courts are available, add a singles match
-        if len(matches) < self.courts and len(self.active_players) - pidx >= 2:
-            matches.append(
-                ([self.active_players[pidx]], [self.active_players[pidx + 1]])
-            )
+        if len(matches) < self.courts and len(match_players) - pidx >= 2:
+            matches.append(([match_players[pidx]], [match_players[pidx + 1]]))
 
         matches.sort(key=self.match_cost)
         return matches[: self.courts]
@@ -141,21 +211,16 @@ class BadmintonSchedulerGraph:
 
         # Calculate opponent cost
         for p1, p2 in product(pair1, pair2):
-            if self.graph.has_edge(p1, p2, key="opp"):
-                cost += self.graph[p1][p2]["opp"]["weight"]
+            if self.mg.has_edge(p1, p2, key="opp"):
+                cost += self.mg[p1][p2]["opp"]["weight"]
 
         # Add teammate cost
         cost += self.teammate_cost(pair1) + self.teammate_cost(pair2)
-
-        # concat players to one iterable
-        match_players = list(sum(match, []))
-        # add rest cost
-        for player in match_players:
-            cost += self.rest_cost(player)
         return cost
 
     def rest_cost(self, player: Player) -> int:
         """
+        NOT USED
         Calculate the cost a player having rested recently
 
         :param team: player IDs in a team.
@@ -163,8 +228,8 @@ class BadmintonSchedulerGraph:
         """
         # Calculate cost
         cost: int = 0
-        if self.graph.has_edge(player, player, key="rest"):
-            cost += self.graph[player][player]["rest"]["weight"]
+        if self.mg.has_edge(player, player, key="rest"):
+            cost += self.mg[player][player]["rest"]["weight"]
         return cost
 
     def teammate_cost(self, team: Team) -> int:
@@ -178,8 +243,8 @@ class BadmintonSchedulerGraph:
         if len(team) == 1:  # Handle singles match as a special case
             team = team * 2
         p1, p2 = team
-        if self.graph.has_edge(p1, p2, key="teammate"):
-            cost += self.graph[p1][p2]["teammate"]
+        if self.mg.has_edge(p1, p2, key="teammate"):
+            cost += self.mg[p1][p2]["teammate"]
         return cost
 
     def toggle_player(self, player: Player) -> None:
@@ -207,8 +272,7 @@ class BadmintonSchedulerGraph:
         """
         self.players.append(new_player)
         self.active_players.append(new_player)
-        self.graph.add_node(new_player)
-        self.add_rest_edges(new_player)  # todo get current round
+        self.mg.add_node(new_player, rest=self.mg.graph["round"], rests=[])
         print_log(f"Player {new_player} has been added.")
 
     def drop_players(self, dropped_indices: List[int]) -> None:
